@@ -18,16 +18,18 @@ function App() {
           >
             Nueva Cotización
           </Link>
-          <button
-            className="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition"
+          <Link
+            to="/productos"
+            className="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition text-center block"
           >
-            Agregar Producto a Base de Datos
-          </button>
-          <button
-            className="w-full bg-yellow-600 text-white py-2 rounded-md hover:bg-yellow-700 transition"
+            Gestionar Productos
+          </Link>
+          <Link
+            to="/clientes"
+            className="w-full bg-yellow-600 text-white py-2 rounded-md hover:bg-yellow-700 transition text-center block"
           >
-            Agregar Cliente a Base de Datos
-          </button>
+            Gestionar Clientes
+          </Link>
         </div>
       </div>
     </div>
