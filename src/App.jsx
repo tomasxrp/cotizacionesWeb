@@ -7,7 +7,7 @@ function App() {
       <div className="max-w-md bg-gray-800 rounded-lg shadow-md p-6">
         <h1 className="text-2xl font-bold mb-6 text-center text-gray-100">Gestión de Cotizaciones</h1>
         <img 
-          src="https://static.vecteezy.com/system/resources/previews/008/214/517/non_2x/abstract-geometric-logo-or-infinity-line-logo-for-your-company-free-vector.jpg" 
+          src="https://via.placeholder.com/150" 
           alt="Cotizaciones" 
           className="mx-auto mb-6 rounded-md shadow-md"
         />
