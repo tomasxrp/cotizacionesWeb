@@ -9,7 +9,7 @@ import GestionPoductos from './pages/GestionPoductos'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <Router>
+    <Router basename="/cotizacionesWeb">
       <Routes>
         <Route path="/" element={<App />} />
         <Route path="/cotizacion" element={<CotizacionPage />} />

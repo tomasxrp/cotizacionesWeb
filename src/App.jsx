@@ -1,14 +1,14 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import logo from '/img/logo.png'
 
 function App() {
   return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center text-gray-100">
       <div className="max-w-md bg-gray-800 rounded-lg shadow-md p-6">
         <h1 className="text-2xl font-bold mb-6 text-center text-gray-100">Gestión de Cotizaciones</h1>
+        {/* Cambiar la ruta del logo para GitHub Pages */}
         <img 
-          src={logo}
+          src="/cotizacionesWeb/img/logo.png"
           alt="Cotizaciones" 
           className="mx-auto mb-6 rounded-md shadow-md"
         />

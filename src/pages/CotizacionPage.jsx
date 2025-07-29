@@ -614,7 +614,7 @@ function CotizacionPage() {
       try {
         // Intentar cargar el logo
         const logoImg = new Image()
-        logoImg.src = '/img/logo.png'
+        logoImg.src = '/cotizacionesWeb/img/logo.png'
         
         await new Promise((resolve, reject) => {
           logoImg.onload = () => {
@@ -643,7 +643,7 @@ function CotizacionPage() {
             resolve()
           }
           logoImg.onerror = () => {
-            console.warn('No se pudo cargar el logo desde /img/logo.png')
+            console.warn('No se pudo cargar el logo desde /cotizacionesWeb/img/logo.png')
             resolve() // Continuar sin logo
           }
           // Timeout de 3 segundos
@@ -746,24 +746,43 @@ function CotizacionPage() {
           doc.text('Sin img', 35, currentY + 12)
         }
 
-        // Texto (descripción puede ser largo, así que lo dividimos)
-        const descripcion = producto.descripcion.length > 25 
-          ? producto.descripcion.substring(0, 25) + '...' 
-          : producto.descripcion
+        // Descripción con salto de línea automático
+        const maxWidth = 50 // Ancho máximo en unidades PDF
+        const descripcionLines = doc.splitTextToSize(producto.descripcion, maxWidth)
         
-        doc.text(descripcion, 55, currentY + 12)
-        doc.text(producto.und, 110, currentY + 12)
-        doc.text(producto.cantidadCotizada.toString(), 125, currentY + 12)
-        doc.text(`$${Math.round(producto.precioVenta || producto.unitario).toLocaleString()}`, 145, currentY + 12)
+        // Si hay múltiples líneas, ajustar la altura de la fila
+        const lineHeight = 3
+        const extraHeight = (descripcionLines.length - 1) * lineHeight
+        
+        // Verificar si necesitamos más espacio para las líneas adicionales
+        if (currentY + rowHeight + extraHeight > 240) {
+          doc.addPage()
+          currentY = 20
+        }
+        
+        // Dibujar cada línea de la descripción
+        descripcionLines.forEach((line, lineIndex) => {
+          doc.text(line, 55, currentY + 12 + (lineIndex * lineHeight))
+        })
+        
+        // Ajustar otros elementos si la descripción es muy larga
+        const textY = descripcionLines.length > 1 ? currentY + 12 + Math.floor(descripcionLines.length / 2) * lineHeight : currentY + 12
+        
+        doc.text(producto.und, 110, textY)
+        doc.text(producto.cantidadCotizada.toString(), 125, textY)
+        doc.text(`$${Math.round(producto.precioVenta || producto.unitario).toLocaleString()}`, 145, textY)
         
         const totalSinIVA = Math.round((producto.precioVenta || producto.unitario) * producto.cantidadCotizada)
-        doc.text(`$${totalSinIVA.toLocaleString()}`, 175, currentY + 12)
+        doc.text(`$${totalSinIVA.toLocaleString()}`, 175, textY)
 
-        // Línea separadora
+        // Ajustar la altura de la fila si hay líneas extra
+        const finalRowHeight = rowHeight + extraHeight
+        
+        // Línea separadora ajustada
         doc.setDrawColor(200, 200, 200)
-        doc.line(10, currentY + rowHeight, 200, currentY + rowHeight)
+        doc.line(10, currentY + finalRowHeight, 200, currentY + finalRowHeight)
 
-        currentY += rowHeight
+        currentY += finalRowHeight
       })
 
       // TOTALES (lado derecho)
