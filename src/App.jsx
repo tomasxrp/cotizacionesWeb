@@ -20,6 +20,12 @@ function App() {
             Nueva Cotización
           </Link>
           <Link
+            to="/historial"
+            className="w-full bg-purple-600 text-white py-2 rounded-md hover:bg-purple-700 transition text-center block"
+          >
+            Historial de Cotizaciones
+          </Link>
+          <Link
             to="/productos"
             className="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition text-center block"
           >

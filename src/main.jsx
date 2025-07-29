@@ -6,6 +6,7 @@ import App from './App'
 import CotizacionPage from './pages/CotizacionPage'
 import GestionClientesPage from './pages/GestionClientesPage'
 import GestionPoductos from './pages/GestionPoductos'
+import HistorialCotizaciones from './pages/HistorialCotizaciones'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -15,6 +16,7 @@ createRoot(document.getElementById('root')).render(
         <Route path="/cotizacion" element={<CotizacionPage />} />
         <Route path="/clientes" element={<GestionClientesPage />} />
         <Route path="/productos" element={<GestionPoductos />} />
+        <Route path="/historial" element={<HistorialCotizaciones />} />
       </Routes>
     </Router>
   </StrictMode>,

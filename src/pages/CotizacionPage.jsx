@@ -39,6 +39,9 @@ function CotizacionPage() {
   const clientesFileRef = useRef(null)
   const productosFileRef = useRef(null)
 
+  // Estado para indicar si estamos editando una cotización
+  const [cotizacionEnEdicion, setCotizacionEnEdicion] = useState(null)
+
   // Función de validación para clientes
   const validateClientesData = (clientes) => {
     const requiredFields = ['rut', 'entidad', 'comuna', 'direccion']
@@ -111,6 +114,30 @@ function CotizacionPage() {
     
     setCotizacionNumber(autoNumber)
     localStorage.setItem('cotizacion-counter', counter.toString())
+  }, [])
+
+  // Cargar cotización en edición si existe
+  useEffect(() => {
+    const cotizacionParaEditar = localStorage.getItem('cotizacion-en-edicion')
+    if (cotizacionParaEditar) {
+      try {
+        const cotizacion = JSON.parse(cotizacionParaEditar)
+        setCotizacionEnEdicion(cotizacion)
+        
+        // Cargar datos de la cotización
+        setSelectedCliente(cotizacion.cliente)
+        setProductos(cotizacion.productos)
+        setCustomCotizacionNumber(cotizacion.numeroCotizacion)
+        setPlazoEntrega(cotizacion.plazoEntrega || 3)
+        setPorcentajeGananciaGlobal(cotizacion.porcentajeGananciaGlobal || 20)
+        
+        // Limpiar el localStorage
+        localStorage.removeItem('cotizacion-en-edicion')
+      } catch (error) {
+        console.error('Error cargando cotización para editar:', error)
+        localStorage.removeItem('cotizacion-en-edicion')
+      }
+    }
   }, [])
 
   // Guardar automáticamente cuando cambien los datos
@@ -369,23 +396,33 @@ function CotizacionPage() {
   const updateGananciaProducto = (index, nuevaGanancia) => {
     const updatedProductos = [...productos]
     updatedProductos[index].porcentajeGanancia = parseFloat(nuevaGanancia) || 0
-    updatedProductos[index].precioVenta = calcularPrecioConGanancia(
+    
+    // Calcular precio con ganancia
+    const precioConGanancia = calcularPrecioConGanancia(
       updatedProductos[index].unitario, 
       updatedProductos[index].porcentajeGanancia
     )
-    updatedProductos[index].precioVentaConIVA = calcularPrecioConIVA(updatedProductos[index].precioVenta)
+    
+    // REDONDEAR el precio de venta (sin decimales)
+    updatedProductos[index].precioVenta = Math.round(precioConGanancia)
+    updatedProductos[index].precioVentaConIVA = Math.round(calcularPrecioConIVA(updatedProductos[index].precioVenta))
+    
     setProductos(updatedProductos)
   }
 
   // Función para aplicar ganancia global a todos los productos
   const aplicarGananciaATodos = () => {
     const updatedProductos = productos.map(producto => {
-      const precioVenta = calcularPrecioConGanancia(producto.unitario, porcentajeGananciaGlobal)
+      const precioConGanancia = calcularPrecioConGanancia(producto.unitario, porcentajeGananciaGlobal)
+      
+      // REDONDEAR el precio de venta (sin decimales)
+      const precioVentaRedondeado = Math.round(precioConGanancia)
+      
       return {
         ...producto,
         porcentajeGanancia: porcentajeGananciaGlobal,
-        precioVenta: precioVenta,
-        precioVentaConIVA: calcularPrecioConIVA(precioVenta)
+        precioVenta: precioVentaRedondeado,
+        precioVentaConIVA: Math.round(calcularPrecioConIVA(precioVentaRedondeado))
       }
     })
     setProductos(updatedProductos)
@@ -394,14 +431,18 @@ function CotizacionPage() {
   // Función para seleccionar productos (agregar IVA)
   const handleSelectProductos = (productosSeleccionados) => {
     const productosConGanancia = productosSeleccionados.map(producto => {
-      const precioVenta = aplicarGananciaGlobal 
+      const precioConGanancia = aplicarGananciaGlobal 
         ? calcularPrecioConGanancia(producto.unitario, porcentajeGananciaGlobal)
         : producto.unitario
+    
+      // REDONDEAR el precio de venta (sin decimales)
+      const precioVentaRedondeado = Math.round(precioConGanancia)
+    
       return {
         ...producto,
         porcentajeGanancia: aplicarGananciaGlobal ? porcentajeGananciaGlobal : 0,
-        precioVenta: precioVenta,
-        precioVentaConIVA: calcularPrecioConIVA(precioVenta),
+        precioVenta: precioVentaRedondeado,
+        precioVentaConIVA: Math.round(calcularPrecioConIVA(precioVentaRedondeado)),
         cantidadCotizada: 1 // Cantidad inicial
       }
     })
@@ -418,6 +459,45 @@ function CotizacionPage() {
     const updatedProductos = [...productos]
     updatedProductos[index].cantidadCotizada = parseFloat(nuevaCantidad) || 0
     setProductos(updatedProductos)
+  }
+
+  // Función para guardar cotización en el historial
+  const guardarEnHistorial = (numeroCotizacion) => {
+    const cotizacion = {
+      id: Date.now().toString(),
+      numeroCotizacion: customCotizacionNumber || numeroCotizacion,
+      fecha: new Date().toISOString(),
+      cliente: selectedCliente,
+      productos: productos,
+      plazoEntrega: plazoEntrega,
+      porcentajeGananciaGlobal: porcentajeGananciaGlobal,
+      // USAR PRECIOS REDONDEADOS para todos los cálculos
+      subtotal: productos.reduce((sum, p) => sum + (Math.round(p.precioVenta || p.unitario) * (p.cantidadCotizada || 0)), 0),
+      iva: productos.reduce((sum, p) => sum + (Math.round(p.precioVenta || p.unitario) * (p.cantidadCotizada || 0)), 0) * (IVA_PORCENTAJE / 100),
+      totalFinal: productos.reduce((sum, p) => sum + (Math.round(p.precioVentaConIVA || calcularPrecioConIVA(p.unitario)) * (p.cantidadCotizada || 0)), 0)
+    }
+
+    // Obtener historial existente
+    const historialExistente = JSON.parse(localStorage.getItem('historial-cotizaciones') || '[]')
+    
+    // Si estamos editando, reemplazar la cotización existente
+    if (cotizacionEnEdicion) {
+      const index = historialExistente.findIndex(c => c.id === cotizacionEnEdicion.id)
+      if (index !== -1) {
+        historialExistente[index] = { ...cotizacion, id: cotizacionEnEdicion.id }
+      } else {
+        historialExistente.unshift(cotizacion)
+      }
+    } else {
+      // Agregar nueva cotización al inicio
+      historialExistente.unshift(cotizacion)
+    }
+
+    // Mantener solo las últimas 100 cotizaciones
+    const historialLimitado = historialExistente.slice(0, 100)
+    
+    // Guardar en localStorage
+    localStorage.setItem('historial-cotizaciones', JSON.stringify(historialLimitado))
   }
 
   // Función para exportar PDF con imágenes
@@ -785,8 +865,8 @@ function CotizacionPage() {
         currentY += finalRowHeight
       })
 
-      // TOTALES (lado derecho)
-      const subtotal = productos.reduce((sum, p) => sum + ((p.precioVenta || p.unitario) * p.cantidadCotizada), 0)
+      // TOTALES (lado derecho) - USAR PRECIOS REDONDEADOS
+      const subtotal = productos.reduce((sum, p) => sum + (Math.round(p.precioVenta || p.unitario) * p.cantidadCotizada), 0)
       const iva = subtotal * (IVA_PORCENTAJE / 100)
       const total = subtotal + iva
 
@@ -879,6 +959,8 @@ function CotizacionPage() {
       const nombreArchivo = customCotizacionNumber ? 
         `cotizacion-N${customCotizacionNumber}.pdf` : 
         `cotizacion-${cotizacionNumber}.pdf`
+
+      guardarEnHistorial(numeroFinal)
       
       doc.save(nombreArchivo)
       
@@ -950,7 +1032,7 @@ function CotizacionPage() {
       headStyles: { fillColor: [100, 100, 100], textColor: 255 },
     })
 
-    const subtotal = productos.reduce((sum, p) => sum + ((p.precioVenta || p.unitario) * p.cantidadCotizada), 0)
+    const subtotal = productos.reduce((sum, p) => sum + (Math.round(p.precioVenta || p.unitario) * p.cantidadCotizada), 0)
     const iva = subtotal * (IVA_PORCENTAJE / 100)
     const total = subtotal + iva
 
@@ -989,28 +1071,60 @@ function CotizacionPage() {
     const nombreArchivo = customCotizacionNumber ? 
       `cotizacion-N${customCotizacionNumber}.pdf` : 
       `cotizacion-${cotizacionNumber}.pdf`
-    
+
+
+    guardarEnHistorial(numeroFinal)
     doc.save(nombreArchivo)
+  }
+
+  // Función para limpiar formulario
+  const limpiarFormulario = () => {
+    setSelectedCliente(null)
+    setProductos([])
+    setCustomCotizacionNumber('')
+    setPlazoEntrega(3)
+    setCotizacionEnEdicion(null)
+    
+    // Generar nuevo número de cotización
+    const savedCounter = localStorage.getItem('cotizacion-counter')
+    const counter = savedCounter ? parseInt(savedCounter) + 1 : 1
+    const year = new Date().getFullYear()
+    const month = String(new Date().getMonth() + 1).padStart(2, '0')
+    const autoNumber = `${counter.toString().padStart(6, '0')}-${month}-COT${year}`
+    
+    setCotizacionNumber(autoNumber)
+    localStorage.setItem('cotizacion-counter', counter.toString())
   }
 
   // Función para limpiar datos guardados
   const clearStoredData = () => {
-    if (confirm('¿Estás seguro de que quieres limpiar todos los datos guardados?')) {
+    if (confirm('¿Estás seguro de que quieres eliminar todos los datos guardados?')) {
       localStorage.removeItem('cotizacion-clientes')
       localStorage.removeItem('cotizacion-productos')
-      localStorage.removeItem('cotizacion-counter')
       setClientesData([])
       setProductosData([])
-      setSelectedCliente(null)
-      setProductos([])
-      alert('Datos limpiados correctamente')
+      alert('Datos eliminados exitosamente')
     }
   }
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-6">
       <div className="max-w-6xl mx-auto bg-gray-800 rounded-lg shadow-md p-6">
-        <h1 className="text-2xl font-bold mb-6 text-center">Nueva Cotización</h1>
+        <h1 className="text-2xl font-bold mb-6 text-center">
+          {cotizacionEnEdicion ? 'Editando Cotización' : 'Nueva Cotización'}
+        </h1>
+        
+        {cotizacionEnEdicion && (
+          <div className="mb-6 bg-yellow-900 border border-yellow-600 p-4 rounded-lg">
+            <div className="flex items-center text-yellow-200">
+              <span className="text-lg mr-2">⚠️</span>
+              <span>
+                Editando cotización N°{cotizacionEnEdicion.numeroCotizacion} del {' '}
+                {new Date(cotizacionEnEdicion.fecha).toLocaleDateString('es-ES')}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Inputs ocultos para importar archivos */}
         <input
@@ -1251,10 +1365,12 @@ function CotizacionPage() {
                         ${Math.round(producto.precioVentaConIVA || calcularPrecioConIVA(producto.unitario)).toLocaleString()}
                       </td>
                       <td className="border border-gray-500 px-1 py-2 font-bold text-xs">
-                        ${Math.round((producto.precioVenta || producto.unitario) * (producto.cantidadCotizada || 0)).toLocaleString()}
+                        {/* USAR PRECIO REDONDEADO para el cálculo */}
+                        ${(Math.round(producto.precioVenta || producto.unitario) * (producto.cantidadCotizada || 0)).toLocaleString()}
                       </td>
                       <td className="border border-gray-500 px-1 py-2 font-bold text-xs text-blue-400">
-                        ${Math.round((producto.precioVentaConIVA || calcularPrecioConIVA(producto.unitario)) * (producto.cantidadCotizada || 0)).toLocaleString()}
+                        {/* USAR PRECIO REDONDEADO para el cálculo */}
+                        ${(Math.round(producto.precioVentaConIVA || calcularPrecioConIVA(producto.unitario)) * (producto.cantidadCotizada || 0)).toLocaleString()}
                       </td>
                       <td className="border border-gray-500 px-1 py-2">
                         <button
@@ -1280,19 +1396,22 @@ function CotizacionPage() {
                 <div className="bg-gray-600 p-3 rounded">
                   <div className="text-sm text-gray-300">Subtotal (con ganancia)</div>
                   <div className="text-lg font-bold text-green-400">
-                    ${productos.reduce((sum, p) => sum + ((p.precioVenta || p.unitario) * (p.cantidadCotizada || 0)), 0).toLocaleString()}
+                    {/* USAR PRECIOS REDONDEADOS */}
+                    ${productos.reduce((sum, p) => sum + (Math.round(p.precioVenta || p.unitario) * (p.cantidadCotizada || 0)), 0).toLocaleString()}
                   </div>
                 </div>
                 <div className="bg-gray-600 p-3 rounded">
                   <div className="text-sm text-gray-300">IVA ({IVA_PORCENTAJE}%)</div>
                   <div className="text-lg font-bold text-yellow-400">
-                    ${Math.round(productos.reduce((sum, p) => sum + ((p.precioVenta || p.unitario) * (p.cantidadCotizada || 0)), 0) * (IVA_PORCENTAJE / 100)).toLocaleString()}
+                    {/* USAR PRECIOS REDONDEADOS */}
+                    ${Math.round(productos.reduce((sum, p) => sum + (Math.round(p.precioVenta || p.unitario) * (p.cantidadCotizada || 0)), 0) * (IVA_PORCENTAJE / 100)).toLocaleString()}
                   </div>
                 </div>
                 <div className="bg-gray-600 p-3 rounded">
                   <div className="text-sm text-gray-300">Total Final (con IVA)</div>
                   <div className="text-xl font-bold text-blue-400">
-                    ${Math.round(productos.reduce((sum, p) => sum + ((p.precioVentaConIVA || calcularPrecioConIVA(p.unitario)) * (p.cantidadCotizada || 0)), 0)).toLocaleString()}
+                    {/* USAR PRECIOS REDONDEADOS */}
+                    ${productos.reduce((sum, p) => sum + (Math.round(p.precioVentaConIVA || calcularPrecioConIVA(p.unitario)) * (p.cantidadCotizada || 0)), 0).toLocaleString()}
                   </div>
                 </div>
               </div>
@@ -1300,17 +1419,26 @@ function CotizacionPage() {
           )}
         </div>
 
-        {/* Botón para exportar PDF */}
-        <button
-          onClick={exportToPDF}
-          disabled={!selectedCliente || productos.length === 0 || generatingPDF}
-          className="w-full bg-red-600 text-white py-3 rounded-md hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-lg font-bold"
-        >
-          {generatingPDF ? 'Generando PDF... Por favor espere' :
-           !selectedCliente ? 'Selecciona un cliente primero' : 
-           productos.length === 0 ? 'Agrega productos primero' : 
-           `Generar Cotización PDF - N°${customCotizacionNumber || cotizacionNumber}`}
-        </button>
+        {/* Botones de acción */}
+        <div className="flex gap-4">
+          <button
+            onClick={exportToPDF}
+            disabled={!selectedCliente || productos.length === 0 || generatingPDF}
+            className="flex-grow bg-red-600 text-white py-3 rounded-md hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-lg font-bold"
+          >
+            {generatingPDF ? 'Generando PDF... Por favor espere' :
+             !selectedCliente ? 'Selecciona un cliente primero' : 
+             productos.length === 0 ? 'Agrega productos primero' : 
+             `${cotizacionEnEdicion ? 'Actualizar' : 'Generar'} Cotización PDF - N°${customCotizacionNumber || cotizacionNumber}`}
+          </button>
+          
+          <button
+            onClick={limpiarFormulario}
+            className="bg-gray-600 text-white px-6 py-3 rounded-md hover:bg-gray-700 text-lg font-bold"
+          >
+            Nueva Cotización
+          </button>
+        </div>
 
         {/* Modales */}
         <ClientesModal
